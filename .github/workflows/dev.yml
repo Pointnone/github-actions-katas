@@ -1,0 +1,80 @@
+name: hello-world
+on:
+  push:
+    branches:
+    - "dev/**"
+env:
+  docker_username: ${{ secrets.DOCKER_USERNAME }}
+  docker_password: ${{ secrets.DOCKER_PASSWORD }}
+  GIT_COMMIT: ${{ github.sha }}
+jobs:
+  Clone-down:
+    runs-on: ubuntu-latest
+    container: gradle:6-jdk11
+    steps:
+    - name: Clone-down
+      uses: actions/checkout@v2
+    - name: Push Artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: code
+        path: .
+  Build:
+    runs-on: ubuntu-latest
+    needs: Clone-down
+    container: gradle:6-jdk11
+    steps:
+    - name: Get Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: code
+        path: .
+    - name: Build
+      run: chmod +x ci/build-app.sh && ci/build-app.sh
+    - name: Test
+      run: chmod +x ci/unit-test-app.sh && ci/unit-test-app.sh
+    - name: Push Artifact (Code)
+      uses: actions/upload-artifact@v2
+      with:
+        name: code
+        path: .
+    - name: Push Artifact (Jar)
+      uses: actions/upload-artifact@v2
+      with:
+        name: jar
+        path: app/build/libs/app-0.1-all.jar
+  Docker-Image:
+    runs-on: ubuntu-latest
+    needs: [Build]
+    steps:
+    - name: Get Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: code
+        path: .
+    - name: Build Docker Image
+      run: chmod +x ci/build-docker.sh && ci/build-docker.sh
+    - name: Push Docker Image
+      run: chmod +x ci/push-docker.sh && ci/push-docker.sh
+  Component-Test:
+    runs-on: ubuntu-latest
+    needs: [Docker-Image]
+    steps:
+    - name: Get Artifact
+      uses: actions/download-artifact@v2
+      with:
+        name: code
+        path: .
+    - name: Execute Component Test
+      run: chmod +x ci/component-test.sh && ci/component-test.sh
+  Performance-Test:
+    runs-on: ubuntu-latest
+    needs: [Docker-Image]
+    steps:
+    - name: Get Artifact
+      uses: actions/download-artifact@v2
+      with: 
+        name: code
+        path: .
+    - name: Execute Performance Test
+      run: chmod +x ci/performance-test.sh && ci/performance-test.sh
